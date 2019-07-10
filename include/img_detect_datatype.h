@@ -129,14 +129,26 @@ struct ParamBIN {
 struct ParamMorph {
     bool openOp;    //是否执行开闭区间操作
     bool closeOp;    //是否执行开闭区间操作
-    int size;
+    bool openFirst;
+    int opSize, clSzie;
     int shape;
 
     ParamMorph() {};
-    ParamMorph(int _size, bool _openOp = true, bool _closeOp = true, int _shape = cv::MorphShapes::MORPH_RECT) :
-        size(_size),
+    ParamMorph(int _size, bool _openFirst = true, bool _openOp = true, bool _closeOp = true, int _shape = cv::MorphShapes::MORPH_RECT) :
+        opSize(_size),
+        clSzie(_size),
         openOp(_openOp),
         closeOp(_closeOp),
+        openFirst(_openFirst),
+        shape(_shape)
+    { }
+
+    ParamMorph(int _opSize, int _clSize, bool _openFirst = true, bool _openOp = true, bool _closeOp = true, int _shape = cv::MorphShapes::MORPH_RECT) :
+        opSize(_opSize),
+        clSzie(_clSize),
+        openOp(_openOp),
+        closeOp(_closeOp),
+        openFirst(_openFirst),
         shape(_shape)
     { }
 };
@@ -185,7 +197,7 @@ struct ParamPreprocess {
 typedef ParamPreprocess ParamPrep;
 
 struct ParamContourSelect {
-    int  minW, maxW, minH, maxH;
+    int  minW, maxW, minH, maxH, contourMode;
     double minRatio, maxRatio;
 
     ParamContourSelect() {};

@@ -26,10 +26,10 @@ int main()
 	std::vector<int> directFlag;//存储寻找第n个圈的左右方向 false左边 true右边
 	ParamCircleFarthestDetection _param(false, cv::Point(0, 0));	
 
-	for (int i = 105; i <= 142; i++)
+	for (int i = 70; i <= 120; i++)
 	{
 		cout << endl << endl << "processing img " << i << endl;
-		std::string path = "../data/bottomDown3/" + to_string(i) + ".png";
+		std::string path = "../data/bottomDown5/" + to_string(i) + ".png";
 		img = imread(path);	//待处理图片放在这		
 
 		Rect rect(0, 100, img.size().width, 70);//改了以下切的区域

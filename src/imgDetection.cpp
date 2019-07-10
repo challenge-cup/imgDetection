@@ -83,7 +83,7 @@ void imgDetection::getNum(cv::Mat &_img, int numDirect, int wantedNum, cv::Point
 {
     cv::Mat imgThresholded;
 
-    ParamPrep paramPrep = ParamPrep(ParamHSV(Scalar(0, 0, 40), Scalar(180, 10, 255)), ParamMorph(5));
+    ParamPrep paramPrep = ParamPrep(ParamHSV(Scalar(0, 0, 40), Scalar(180, 10, 255)), ParamMorph(7, 4));
     ParamContourSelect paramSelect = ParamContourSelect(20, 280, 50, 250, 0.8, 1.2);
     if (numDirect == NumDirection::LYING) {
         paramPrep.pHSV.scalarL = Scalar(0, 0, 40);
@@ -91,14 +91,14 @@ void imgDetection::getNum(cv::Mat &_img, int numDirect, int wantedNum, cv::Point
         paramSelect = ParamContourSelect(20, 280, 20, 250, 0.88, 1.4);
     }
     else  {
-        paramPrep.pHSV.scalarL = Scalar(0, 0, 150);
-        paramPrep.pHSV.scalarH = Scalar(10, 10, 255);
-        paramSelect = ParamContourSelect(30, 200, 20, 120, 1.4, 1.8);
+        paramPrep.pHSV.scalarL = Scalar(0, 0, 184);
+        paramPrep.pHSV.scalarH = Scalar(42, 3, 229);
+        paramSelect = ParamContourSelect(50, 200, 20, 120, 1.2, 1.8);
     }
 
     imgPreprocess(_img, imgThresholded, paramPrep);
-    //cv::imshow("imgThresholded", imgThresholded);
-    //cv::waitKey(0);
+    cv::imshow("imgThresholded", imgThresholded);
+    cv::waitKey(0);
 
     typeVecRect resRects;
     contourSelect(imgThresholded, resRects, paramSelect);
@@ -168,12 +168,21 @@ void imgDetection::imgPreprocess(const cv::Mat &_src, cv::Mat &_dst, const Param
 
     /*  开闭运算  */
     if (_param.usingMorph == true) {
-        int _size = _param.pMorph.size;
-        Mat element = getStructuringElement(_param.pMorph.shape, Size(_size, _size));
-        if (_param.pMorph.closeOp)
-            morphologyEx(_dst, _dst, MORPH_CLOSE, element);
-        if (_param.pMorph.openOp)
-            morphologyEx(_dst, _dst, MORPH_OPEN, element);
+        Mat opElement = getStructuringElement(_param.pMorph.shape, Size(_param.pMorph.clSzie, _param.pMorph.clSzie));
+        Mat clElement = getStructuringElement(_param.pMorph.shape, Size(_param.pMorph.opSize, _param.pMorph.opSize));
+        if (_param.pMorph.openFirst) {
+            if (_param.pMorph.openOp)
+                morphologyEx(_dst, _dst, MORPH_OPEN, opElement);
+            if (_param.pMorph.closeOp)
+                morphologyEx(_dst, _dst, MORPH_CLOSE, clElement);
+        }
+        else {
+            if (_param.pMorph.closeOp)
+                morphologyEx(_dst, _dst, MORPH_CLOSE, clElement);
+            if (_param.pMorph.openOp)
+                morphologyEx(_dst, _dst, MORPH_OPEN, opElement);
+        }
+
         //imshow("Thresholded Image2", _dst); //show the thresholded image
         //闭操作 (连接一些连通域)
     }
@@ -205,8 +214,8 @@ void imgDetection::getRoiNum(cv::Mat &_img, int numDirect, int wantedNum, cv::Po
     imgPreprocess(_img, imgThresholded, paramPrep);
     cv::Mat imgThresholdedRGB;
     cvtColor(imgThresholded, imgThresholdedRGB, COLOR_GRAY2RGB);
-    //cv::imshow("imgThresholded1", imgThresholded);
-    //cv::waitKey(0);
+    cv::imshow("imgThresholded1", imgThresholded);
+    cv::waitKey(0);
 
     typeVecRect resultRects;
     contourSelect(imgThresholded, resultRects, paramSelect);
@@ -370,45 +379,85 @@ void imgDetection::readAruco()
 	//	cout << *iter << endl;
 }
 
-void imgDetection::detectAruco(cv::Mat &A, cv::Mat &depthImg, int &rightMarkerIds, std::ofstream &_outfile, bool &state)
+//柱子旁边的小树苗
+void imgDetection::getSapling(cv::Mat & _img, ParamGenDetect & _param)
 {
-	/*Mat HSA;
-	cvtColor(A, HSA, COLOR_BGR2HSV);
-	int iLowH = 0 / 2;
-	int iHighH = 360 / 2;
+    Mat imgThresholded;
 
-	int iLowS = 0 * 255 / 100;
-	int iHighS = 34 * 255 / 100;
+    //设置不同的开闭运算核
+    ParamPrep paramPrep1 = ParamPrep(ParamHSV(Scalar(36, 0, 0), Scalar(64, 255, 255)), ParamMorph(8));
+    ParamPrep paramPrep2 = ParamPrep(ParamHSV(Scalar(36, 0, 0), Scalar(64, 255, 255)), ParamMorph(3));
 
-	int iLowV = 0 * 255 / 100;
-	int iHighV = 100 * 255 / 100;
-	Mat imgThresholded;
+    cv::cvtColor(_img, imgThresholded, COLOR_BGR2HSV);
+    //二值化
+    cv::inRange(imgThresholded, paramPrep1.pHSV.scalarL, paramPrep1.pHSV.scalarH, imgThresholded);
+    //cv::imshow("imgThresholded2", imgThresholded);
+    //cv::waitKey(0);
+    //开闭运算
+    if (paramPrep2.usingMorph == true) {
+        int _size1 = paramPrep1.pMorph.clSzie;
+        int _size2 = paramPrep2.pMorph.opSize;
+        Mat element1 = getStructuringElement(paramPrep2.pMorph.shape, Size(_size1, _size1));
+        Mat element2 = getStructuringElement(paramPrep2.pMorph.shape, Size(_size2, _size2));
+        //先开再闭，去除噪点
+        if (paramPrep2.pMorph.openOp)
+            morphologyEx(imgThresholded, imgThresholded, MORPH_OPEN, element2);
+        //imshow("open", imgThresholded); //show the thresholded image
+        //闭操作 (连接一些连通域)，防止内部轮廓出错
+        if (paramPrep2.pMorph.closeOp)
+            morphologyEx(imgThresholded, imgThresholded, MORPH_CLOSE, element1);
+        //cv::imshow("close", imgThresholded);
+    }
+    //找最外层次的轮廓 cv::RETR_EXTERNAL
+    std::vector<std::vector<cv::Point>> contours;
+    std::vector<cv::Vec4i> hierarchy;
+    findContours(imgThresholded, contours, hierarchy, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_NONE, cv::Point());
+    //外接矩形
+    cv::Mat imageContours = cv::Mat::zeros(imgThresholded.size(), CV_32FC3); //最小外接矩形画布
+    cv::Rect rect = cv::Rect(0, 0, 0, 0);
 
-	inRange(HSA, Scalar(iLowH, iLowS, iLowV), Scalar(iHighH, iHighS, iHighV), imgThresholded); //Threshold the image
-	Mat grayA;
-	cvtColor(A, grayA, COLOR_RGB2GRAY);
-	for (int i = 0; i < imgThresholded.rows; ++i)
-	{
-	//获取第 i行首像素指针
-	uchar * p = imgThresholded.ptr<uchar>(i);
-	//对第i 行的每个像素(byte)操作
-	for (int j = 0; j < imgThresholded.cols; ++j)
-	if (p[j]<200)grayA.at<uchar>(i, j) = 255;
-	}
-	for (int i = 0; i < grayA.rows; ++i)
-	{
-	//获取第 i行首像素指针
-	uchar * p = grayA.ptr<uchar>(i);
-	//对第i 行的每个像素(byte)操作
-	for (int j = 0; j < grayA.cols; ++j)
-	{
-	if (p[j] >100)grayA.at<uchar>(i, j) = 255;
-	if (p[j] < 100)grayA.at<uchar>(i, j) = 0;
-	}
-	}*/
+    for (int i = 0; i < contours.size(); i++)
+        //for (int i = 0; i < filterRect.size(); i++)
+    {
+        cv::Rect tRect = cv::Rect(0, 0, 0, 0);
+        //cv::Rect lRect = cv::Rect(0, 0, 0, 0);
+        bool calabash = false;
+        int tarea;
+        int farea;
+        tRect = cv::boundingRect(contours[i]);
+        cv::rectangle(imageContours, tRect, Scalar(0, 0, 255), 2, 8, 0);
+        tarea = tRect.area();
+        if (tarea < 500)
+        {
+            continue;
+        }
+        cout << "tarea  " << tarea << endl;
+        if (tRect.area() > rect.area())
+        {
+            rect = cv::Rect(tRect);
+            _param.state = true;
+            cv::drawContours(imageContours, contours, i, cv::Scalar(0, 255, 0), 1, 8, hierarchy);
+        }
+        else
+        {
+            cv::drawContours(imageContours, contours, i, cv::Scalar(255, 0, 0), 1, 8, hierarchy);
+        }
 
-	//Mat B = A.clone();
+    }
+    //画轮廓 以及外接矩形
+    cv::rectangle(imageContours, rect, Scalar(0, 255, 0), 2, 8, 0);
+    //cv::imshow("imageContour", imageContours);
+    if (_param.state) {
+        _param.center.x = rect.x + rect.width / 2;
+        _param.center.y = rect.y + rect.height / 2;
+    }
+    //_param.center.x = rect.x + rect.width / 2;
+    //_param.center.y = rect.y + rect.height / 2;
 
+}
+
+void imgDetection::detectAruco(cv::Mat &A, cv::Mat &depthImg, int &rightMarkerIds, std::ofstream &_outfile, bool &state, int &wantId)
+{
 	state = false;
 
 	Mat B;
@@ -423,7 +472,124 @@ void imgDetection::detectAruco(cv::Mat &A, cv::Mat &depthImg, int &rightMarkerId
 	//params->adaptiveThreshWinSizeMax = 50;
 	//params->polygonalApproxAccuracyRate = 0.15;
 	params->minMarkerPerimeterRate = 0.0008;
-	cv::aruco::detectMarkers(thA, dictionary, markerCorners, markerIds, params, rejectedCandidates);
+
+	if (wantId == 759)
+	{
+		////二值化
+		//Mat imgHSV;
+		//cvtColor(_img, imgHSV, COLOR_BGR2HSV);
+
+		cv::Mat imgThresholded, imgThresholded1, imgThresholded2;
+
+		//灰度二值化滤波
+		//cv::imshow("imgThresholded1", B);
+		//cv::threshold(B, imgThresholded2,200,255, THRESH_BINARY);
+		//cv::threshold(B, imgThresholded2, 200, 255, THRESH_BINARY_INV);
+		//cv::imshow("imgThresholded2", imgThresholded2);
+
+		//HSV滤波
+		ParamPrep paramPrep1 = ParamPrep(ParamHSV(Scalar(0, 0, 199), Scalar(35, 6, 255)), ParamMorph(2));
+		ParamPrep paramPrep2 = ParamPrep(ParamHSV(Scalar(0, 0, 199), Scalar(35, 6, 255)), ParamMorph(5));
+		cvtColor(A, imgThresholded1, COLOR_BGR2HSV); //Convert the captured frame from BGR to HSV  
+		cv::inRange(imgThresholded1, paramPrep2.pHSV.scalarL, paramPrep2.pHSV.scalarH, imgThresholded2); //Threshold the image 
+		//cv::imshow("imgThresholded1", imgThresholded1);
+		//cv::waitKey(0);
+
+		if (paramPrep2.usingMorph == true) {
+			int _size1 = paramPrep1.pMorph.opSize;
+			int _size2 = paramPrep2.pMorph.clSzie;
+			Mat element1 = getStructuringElement(paramPrep2.pMorph.shape, Size(_size1, _size1));
+			Mat element2 = getStructuringElement(paramPrep2.pMorph.shape, Size(_size2, _size2));
+			//zz
+			if (paramPrep2.pMorph.openOp)
+				morphologyEx(imgThresholded2, imgThresholded2, MORPH_OPEN, element1);
+			if (paramPrep2.pMorph.closeOp)
+				morphologyEx(imgThresholded2, imgThresholded2, MORPH_CLOSE, element2);
+
+		}
+		cv::imshow("imgThresholded2", imgThresholded2);
+		//cv::waitKey(0);
+		//imgThresholded = imgThresholded1 | imgThresholded2;
+		imgThresholded = imgThresholded2;
+		std::vector<std::vector<cv::Point>> contours;
+		std::vector<cv::Vec4i> hierarchy;
+		findContours(imgThresholded, contours, hierarchy, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_NONE, cv::Point());
+		//外接矩形
+		cv::Rect fRect = cv::Rect(0, 0, 0, 0);
+		cv::Rect rect = cv::Rect(0, 0, 0, 0);
+		cv::Mat imageContours = cv::Mat::zeros(imgThresholded.size(), CV_32FC3); //最小外接矩形画布
+		for (int i = 0; i < contours.size(); i++)
+		{
+			cv::Rect tRect = cv::Rect(0, 0, 0, 0);
+			//cv::Rect lRect = cv::Rect(0, 0, 0, 0);
+			int tarea;
+			int farea;
+			tRect = cv::boundingRect(contours[i]);
+			tarea = tRect.area();
+			if (tarea < 2000)
+			{
+				continue;
+			}
+			rect = fRect | tRect;
+			fRect = cv::Rect(rect);
+			cv::rectangle(imageContours, rect, Scalar(0, 0, 255), 2, 8, 0);
+
+		}
+		cv::rectangle(imageContours, rect, Scalar(0, 255, 0), 2, 8, 0);
+		cv::rectangle(A, rect, Scalar(0, 255, 0), 2, 8, 0);
+		cv::imshow("contours", imageContours);
+
+		cv::Mat secondImg = imgThresholded1(rect);
+		ParamPrep paramPrep3 = ParamPrep(ParamHSV(Scalar(0, 0, 0), Scalar(61, 255, 141)), ParamMorph(2));
+		cv::inRange(secondImg, paramPrep3.pHSV.scalarL, paramPrep3.pHSV.scalarH, secondImg); //Threshold the image 
+		//cv::imshow("secondImg", secondImg);
+		//cv::imshow("secondImg2", secondImg);
+		std::vector<std::vector<cv::Point>> contours1;
+		std::vector<cv::Vec4i> hierarchy1;
+		findContours(secondImg, contours1, hierarchy1, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_NONE, cv::Point());
+		//外接矩形
+		//cv::Rect wantRect;
+		cv::Rect sRect = cv::Rect(0, 0, 0, 0);
+		cv::Rect sfRect = cv::Rect(0, 0, 0, 0);
+		cv::Mat imageContours1 = cv::Mat::zeros(secondImg.size(), CV_32FC3); //最小外接矩形画布
+		cout <<" contours1.size()"<< contours1.size() << endl;
+		for (int i = 0; i < contours1.size(); i++)
+			//for (int i = 0; i < filterRect.size(); i++)
+		{
+			
+			//cv::Rect lRect = cv::Rect(0, 0, 0, 0);
+			cv::Rect stRect = cv::Rect(0, 0, 0, 0);
+			//cv::Rect lRect = cv::Rect(0, 0, 0, 0);
+			int sfarea;
+			stRect = cv::boundingRect(contours1[i]);
+			if (stRect.area() < 2000)
+			{
+				continue;
+			}
+			sRect = sfRect | stRect;
+			sfRect = cv::Rect(sRect);
+			cv::rectangle(imageContours1, sRect, Scalar(0, 0, 255), 2, 8, 0);
+			cv::imshow("imageContours1", imageContours1);
+		}
+		cout << "zzzzz" << sRect.x+rect.x << "	" << sRect.y+ rect.y << endl;
+		cv::rectangle(secondImg, sRect, 200, 2, 8, 0);
+		cv::imshow("secondImg", secondImg);
+		//给坐标
+		std::vector<cv::Point2f> wantMarkerCorners;
+		wantMarkerCorners.push_back(cv::Point2f(sRect.x + rect.x, sRect.y + rect.y));
+		wantMarkerCorners.push_back(cv::Point2f(sRect.x + rect.x + sRect.height, sRect.y + rect.y));
+		wantMarkerCorners.push_back(cv::Point2f(sRect.x + rect.x + sRect.height, sRect.y + rect.y + sRect.width));
+		wantMarkerCorners.push_back(cv::Point2f(sRect.x + rect.x, sRect.y + rect.y + sRect.width));
+		markerCorners.push_back(wantMarkerCorners);
+		markerIds.push_back(759);
+	}
+	else
+	{
+		cv::aruco::detectMarkers(thA, dictionary, markerCorners, markerIds, params, rejectedCandidates);
+	}
+	
+
+
 
 	if (markerIds.size() != 0) {
 		rightMarkerIds = markerIds[0];
@@ -511,18 +677,18 @@ void imgDetection::getCircleDown(cv::Mat &_img, cv::Point &center, bool &state, 
     /***     HSV     ***/
     Mat imgThresholded, imgThresholded1, imgThresholded2;
 
-    ParamPrep paramPrep1 = ParamPrep(ParamHSV(Scalar(156, 83, 180), Scalar(180, 255, 255)), ParamMorph(5));
-    ParamPrep paramPrep2 = ParamPrep(ParamHSV(Scalar(0, 83, 180), Scalar(13, 255, 255)), ParamMorph(5));
+    ParamPrep paramPrep1 = ParamPrep(ParamHSV(Scalar(156, 10, 194), Scalar(180, 255, 255)), ParamMorph(5, false));
+    ParamPrep paramPrep2 = ParamPrep(ParamHSV(Scalar(0, 10, 194), Scalar(13, 255, 255)), ParamMorph(5, false));
 
     imgPreprocess(_img, imgThresholded1, paramPrep1);
     imgPreprocess(_img, imgThresholded2, paramPrep2);
-	imgThresholded = imgThresholded1 | imgThresholded2;//  红色分布在两个hsv区域内，分别筛选后合起来
-	//cv::imshow("imgThresholded", imgThresholded);
-	//cv::waitKey(0);
+    imgThresholded = imgThresholded1 | imgThresholded2;//  红色分布在两个hsv区域内，分别筛选后合起来
+    //cv::imshow("imgThresholded", imgThresholded);
+    //cv::waitKey(0);
 
     /***     轮廓筛选     ***/
     typeVecRect resRects;
-    ParamContourSelect paramSelect = ParamContourSelect(30, 250, 5, 100, 1.7, 20);
+    ParamContourSelect paramSelect = ParamContourSelect(30, 640, 5, 180, 1.7, 20);
     contourSelect(imgThresholded, resRects, paramSelect);
 
     state = false;
@@ -531,46 +697,45 @@ void imgDetection::getCircleDown(cv::Mat &_img, cv::Point &center, bool &state, 
         cv::Point tempCenter = cv::Point(resRect.x + resRect.width / 2, resRect.y + resRect.height / 2);
         state = true;
         //cout << predNum << "," << wantedNum << endl;
-        if (minY > tempCenter.y)    {
+        if (minY > tempCenter.y) {
             minY = tempCenter.y;
             center = tempCenter;
         }
     }
-	cv::Rect fRect = cv::Rect(0, 0, 0, 0);
-	cv::Rect rect = cv::Rect(0, 0, 0, 0);
-	for (int i = 0; i < resRects.size(); i++)
-		//for (int i = 0; i < filterRect.size(); i++)
-	{
-		cv::Rect tRect = cv::Rect(resRects[i]);
-		//cv::Rect lRect = cv::Rect(0, 0, 0, 0);
-		bool calabash = false;
-		int tarea;
-		int farea;
-		tarea = tRect.area();
-		if (tarea < 50)
-		{
-			continue;
-		}
-		rect = fRect | tRect;
-		fRect = cv::Rect(rect);
-	}
-	CircleBottom = cv::Rect(rect);
-	//cout << rect.x << '\t' << rect.y << '\t' << rect.height << '\t' << rect.width << endl;
-	cv::Mat imageContours = cv::Mat::zeros(imgThresholded.size(), CV_32FC3); //最小外接矩形画布
-	cv::rectangle(imageContours, rect, Scalar(0, 255, 0), 2, 8, 0);
-	cv::rectangle(imgThresholded, CircleBottom, 150, 2, 8, 0);
-	cv::imshow("imgThresholded", imgThresholded);
-	cv::imshow("imageContours", imageContours);
-	
-	//if (state == true)
-	//{
-	//	cv::Mat showImg = _img.clone();
-	//	circle(showImg, center, 8, Scalar(0, 0, 255), -1, 8, 0);
-	//	cv::imshow("showImg", showImg);
-	//	cv::waitKey(0);
-	//}
+    cv::Rect fRect = cv::Rect(0, 0, 0, 0);
+    cv::Rect rect = cv::Rect(0, 0, 0, 0);
+    for (int i = 0; i < resRects.size(); i++)
+        //for (int i = 0; i < filterRect.size(); i++)
+    {
+        cv::Rect tRect = cv::Rect(resRects[i]);
+        //cv::Rect lRect = cv::Rect(0, 0, 0, 0);
+        bool calabash = false;
+        int tarea;
+        int farea;
+        tarea = tRect.area();
+        //if (tarea < 20)
+        //{
+        //    continue;
+        //}
+        rect = fRect | tRect;
+        fRect = cv::Rect(rect);
+    }
+    CircleBottom = cv::Rect(rect);
+    //cout << rect.x << '\t' << rect.y << '\t' << rect.height << '\t' << rect.width << endl;
+    cv::Mat imageContours = cv::Mat::zeros(imgThresholded.size(), CV_32FC3); //最小外接矩形画布
+    cv::rectangle(imageContours, rect, Scalar(0, 255, 0), 2, 8, 0);
+    cv::rectangle(imgThresholded, CircleBottom, 150, 2, 8, 0);
+    cv::imshow("imgThresholded", imgThresholded);
+    cv::imshow("imageContours", imageContours);
+    cv::waitKey(0);
+    //if (state == true)
+    //{
+    //	cv::Mat showImg = _img.clone();
+    //	circle(showImg, center, 8, Scalar(0, 0, 255), -1, 8, 0);
+    //	cv::imshow("showImg", showImg);
+    //	cv::waitKey(0);
+    //}
 }
-
 //void imgDetection::getTreeTop(cv::Mat &_img, ParamGenDetect &_param) {   //俯视看树桩
 //    getTreeTop(_img, _param.center, _param.state);
 //}      
@@ -580,7 +745,7 @@ void imgDetection::getTreeTop(cv::Mat &_img, cv::Point &center, bool &state)    
     cv::Mat imgThresholded;
 
     /*  土黄色  */
-    ParamPrep paramPrep = ParamPrep(ParamHSV(Scalar(7, 17, 106), Scalar(30, 122, 255)), ParamMorph(5));
+    ParamPrep paramPrep = ParamPrep(ParamHSV(Scalar(7, 17, 106), Scalar(30, 122, 255)), ParamMorph(5, false));
     imgPreprocess(_img, imgThresholded, paramPrep);
 
     typeVecRect resRects;
@@ -635,8 +800,8 @@ void imgDetection::getBottomDown(cv::Mat & _img, ParamCircleFarthestDetection &_
 
     /*  开闭运算  */
     if (paramPrep2.usingMorph == true) {
-        int _size1 = paramPrep1.pMorph.size;
-        int _size2 = paramPrep2.pMorph.size;
+        int _size1 = paramPrep1.pMorph.opSize;
+        int _size2 = paramPrep2.pMorph.clSzie;
         Mat element1 = getStructuringElement(paramPrep2.pMorph.shape, Size(_size1, _size1));
         Mat element2 = getStructuringElement(paramPrep2.pMorph.shape, Size(_size2, _size2));
         //zz
@@ -651,8 +816,8 @@ void imgDetection::getBottomDown(cv::Mat & _img, ParamCircleFarthestDetection &_
         //imshow("Thresholded Image2", _dst); //show the thresholded image
         //闭操作 (连接一些连通域)
     }
-    cv::imshow("_dst", imgThresholded2);
-    /*cv::waitKey(0);*/
+    //cv::imshow("_dst", imgThresholded2);
+    //cv::waitKey(0);
     //imgThresholded = imgThresholded1 | imgThresholded2;
     imgThresholded = imgThresholded2;
 
@@ -717,10 +882,7 @@ void imgDetection::getBottomDown(cv::Mat & _img, ParamCircleFarthestDetection &_
             _param.center.x = allCircle.back().x;
             _param.center.y = allCircle.back().y;
             //比较前后两个牌子左右关系
-            if (directFlag.empty()) {  //第一个就是向左
-                directFlag.push_back(-1);
-            }
-            else if (tempRect.x > rect.x)
+            if (tempRect.x > rect.x)
             {
                 directFlag.push_back(-1);
             }
@@ -747,7 +909,7 @@ void imgDetection::getBottomDown(cv::Mat & _img, ParamCircleFarthestDetection &_
     cv::rectangle(imageContours, rect, Scalar(0, 255, 0), 2, 8, 0);
     //cv::line(imageContours, Point(0, 120), Point(639, 120), Scalar(0, 0, 255), 2, 8, 0);
     //cv::line(imageContours, Point(0, 180), Point(639, 180), Scalar(0, 0, 255), 2, 8, 0);
-    cv::imshow("contours", imageContours);
+    //cv::imshow("contours", imageContours);
 
     //directFlag.push_back(true);
     //for (auto val : directFlag) {
@@ -787,10 +949,10 @@ void imgDetection::contourSelect(const cv::Mat &_imgThresholded, typeVecRect &_r
         if (height < _param.minH || width < _param.minW)  continue;
         if ((ratio < _param.minRatio) || (ratio > _param.maxRatio))	 continue;
 
-        //cout << height << ',' << width << ',' << ratio << endl;
-        //drawContours(imageContours, contours, i, cv::Scalar(255, 0, 0), 3, 8, hierarchy);
-        //cv::imshow("img", imageContours);
-        //cv::waitKey(0);
+        cout << height << ',' << width << ',' << ratio << endl;
+        drawContours(imageContours, contours, i, cv::Scalar(255, 0, 0), 3, 8, hierarchy);
+        cv::imshow("img1", imageContours);
+        cv::waitKey(0);
         _rect.push_back(rect);
     }
 }  

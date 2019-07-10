@@ -95,17 +95,17 @@ int roi()
 	//int iLowS = 0;//0-108
 	//int iHighS = 11;
 
-	int iLowH = 19;
-	int iHighH = 102;
+	int iLowH = 0;
+	int iHighH = 15;
 
-	int iLowS = 23;
+	int iLowS = 44;
 	int iHighS = 255;
 
-	int iLowV = 0;
-	int iHighV = 63;
+	int iLowV = 75;
+	int iHighV = 255;
 
-	int index = 4;
-	int index_max = 5;
+	int index = 1;
+	int index_max = 50;
 	namedWindow("Control", cv::WINDOW_FREERATIO); //create a window called "Control"  
 											  //Create trackbars in "Control" window  
 	cv::createTrackbar("LowH", "Control", &iLowH, 180); //Hue (0 - 179)  
@@ -121,8 +121,8 @@ int roi()
 	double con_area = 0;
 	do {
 		//file_name = "D:/qrcode/1 (" + std::to_string(index + 1) + ").png";
-		//file_name = "../data/quad/"+ std::to_string(index + 1) + ".png";
-        file_name = "../data/bottomDown/" + std::to_string(262) + ".png";
+		//file_name = "../data/quad/"+ std::to_string(index + 1) + ".png";93
+        file_name = "../data/Aruco759/" + std::to_string(index + 359) + ".png";
         //std::string path = "../data/stand/" + std::to_string(index + 1) + ".jpg";
 		try {
 			auto img = imread(file_name);
@@ -176,6 +176,7 @@ int roi()
 														 //imshow("dest", dest);											 //imshow("imageContours", imageContours); //show the original image  
 			imshow("Original", img); //show the original image  
 									 //std::cout << index << endl;
+			//cv::waitKey(0);
 			char key = (char)waitKey(300);
 
 			//if (key == 27)
