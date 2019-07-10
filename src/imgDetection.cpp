@@ -460,10 +460,6 @@ void imgDetection::detectAruco(cv::Mat &A, cv::Mat &depthImg, int &rightMarkerId
 {
 	state = false;
 
-	Mat B;
-	Mat thA;
-	cvtColor(A, B, COLOR_BGR2GRAY);
-	equalizeHist(B, thA);
 	vector< int > markerIds;
 	vector< vector<Point2f> > markerCorners, rejectedCandidates;
 	Ptr<aruco::Dictionary> dictionary = aruco::getPredefinedDictionary(aruco::DICT_ARUCO_ORIGINAL);
@@ -472,6 +468,7 @@ void imgDetection::detectAruco(cv::Mat &A, cv::Mat &depthImg, int &rightMarkerId
 	//params->adaptiveThreshWinSizeMax = 50;
 	//params->polygonalApproxAccuracyRate = 0.15;
 	params->minMarkerPerimeterRate = 0.0008;
+	cv::Mat inputImg;
 
 	if (wantId == 759)
 	{
@@ -479,7 +476,7 @@ void imgDetection::detectAruco(cv::Mat &A, cv::Mat &depthImg, int &rightMarkerId
 		//Mat imgHSV;
 		//cvtColor(_img, imgHSV, COLOR_BGR2HSV);
 
-		cv::Mat imgThresholded, imgThresholded1, imgThresholded2;
+		cv::Mat imgThresholded, imgThresholded1;
 
 		//灰度二值化滤波
 		//cv::imshow("imgThresholded1", B);
@@ -488,10 +485,14 @@ void imgDetection::detectAruco(cv::Mat &A, cv::Mat &depthImg, int &rightMarkerId
 		//cv::imshow("imgThresholded2", imgThresholded2);
 
 		//HSV滤波
-		ParamPrep paramPrep1 = ParamPrep(ParamHSV(Scalar(0, 0, 199), Scalar(35, 6, 255)), ParamMorph(2));
-		ParamPrep paramPrep2 = ParamPrep(ParamHSV(Scalar(0, 0, 199), Scalar(35, 6, 255)), ParamMorph(5));
+		//ParamPrep paramPrep1 = ParamPrep(ParamHSV(Scalar(0, 0, 199), Scalar(35, 6, 255)), ParamMorph(2));
+		//ParamPrep paramPrep2 = ParamPrep(ParamHSV(Scalar(0, 0, 199), Scalar(35, 6, 255)), ParamMorph(10));
+		//ParamPrep paramPrep1 = ParamPrep(ParamHSV(Scalar(0, 0, 126), Scalar(180, 255, 255)), ParamMorph(2));
+		//ParamPrep paramPrep1 = ParamPrep(ParamHSV(Scalar(0, 0, 126), Scalar(180, 255, 255)), ParamMorph(2));
+		ParamPrep paramPrep1 = ParamPrep(ParamHSV(Scalar(0, 0, 0), Scalar(180, 10, 255)), ParamMorph(5));
+		ParamPrep paramPrep2 = ParamPrep(ParamHSV(Scalar(0, 0, 0), Scalar(180, 10, 255)), ParamMorph(12));
 		cvtColor(A, imgThresholded1, COLOR_BGR2HSV); //Convert the captured frame from BGR to HSV  
-		cv::inRange(imgThresholded1, paramPrep2.pHSV.scalarL, paramPrep2.pHSV.scalarH, imgThresholded2); //Threshold the image 
+		cv::inRange(imgThresholded1, paramPrep2.pHSV.scalarL, paramPrep2.pHSV.scalarH, inputImg); //Threshold the image 
 		//cv::imshow("imgThresholded1", imgThresholded1);
 		//cv::waitKey(0);
 
@@ -502,91 +503,113 @@ void imgDetection::detectAruco(cv::Mat &A, cv::Mat &depthImg, int &rightMarkerId
 			Mat element2 = getStructuringElement(paramPrep2.pMorph.shape, Size(_size2, _size2));
 			//zz
 			if (paramPrep2.pMorph.openOp)
-				morphologyEx(imgThresholded2, imgThresholded2, MORPH_OPEN, element1);
+				morphologyEx(inputImg, inputImg, MORPH_OPEN, element1);
 			if (paramPrep2.pMorph.closeOp)
-				morphologyEx(imgThresholded2, imgThresholded2, MORPH_CLOSE, element2);
+				morphologyEx(inputImg, inputImg, MORPH_CLOSE, element2);
 
 		}
-		cv::imshow("imgThresholded2", imgThresholded2);
-		//cv::waitKey(0);
+		cv::imshow("inputImg", inputImg);
+		cv::waitKey(0);
+		//cv::aruco::detectMarkers(imgThresholded2, dictionary, markerCorners, markerIds, params, rejectedCandidates);
+		//for (auto markerId : markerIds) {
+		//	cout << "found" << markerId << endl;
+		//}
+		
+		//if (markerIds.size() != 0) {
+		//	rightMarkerIds = markerIds[0];
+		//	printf("有二维码:%d\n", rightMarkerIds);
+		//}
+		//else {
+		//	printf("没有任何二维码\n");
+		//	return;
+		//}
+
 		//imgThresholded = imgThresholded1 | imgThresholded2;
-		imgThresholded = imgThresholded2;
-		std::vector<std::vector<cv::Point>> contours;
-		std::vector<cv::Vec4i> hierarchy;
-		findContours(imgThresholded, contours, hierarchy, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_NONE, cv::Point());
-		//外接矩形
-		cv::Rect fRect = cv::Rect(0, 0, 0, 0);
-		cv::Rect rect = cv::Rect(0, 0, 0, 0);
-		cv::Mat imageContours = cv::Mat::zeros(imgThresholded.size(), CV_32FC3); //最小外接矩形画布
-		for (int i = 0; i < contours.size(); i++)
-		{
-			cv::Rect tRect = cv::Rect(0, 0, 0, 0);
-			//cv::Rect lRect = cv::Rect(0, 0, 0, 0);
-			int tarea;
-			int farea;
-			tRect = cv::boundingRect(contours[i]);
-			tarea = tRect.area();
-			if (tarea < 2000)
-			{
-				continue;
-			}
-			rect = fRect | tRect;
-			fRect = cv::Rect(rect);
-			cv::rectangle(imageContours, rect, Scalar(0, 0, 255), 2, 8, 0);
+		//imgThresholded = imgThresholded2;
+		//std::vector<std::vector<cv::Point>> contours;
+		//std::vector<cv::Vec4i> hierarchy;
+		//findContours(imgThresholded, contours, hierarchy, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_NONE, cv::Point());
+		////外接矩形
+		//cv::Rect fRect = cv::Rect(0, 0, 0, 0);
+		//cv::Rect rect = cv::Rect(0, 0, 0, 0);
+		//cv::Mat imageContours = cv::Mat::zeros(imgThresholded.size(), CV_32FC3); //最小外接矩形画布
+		//for (int i = 0; i < contours.size(); i++)
+		//{
+		//	cv::Rect tRect = cv::Rect(0, 0, 0, 0);
+		//	//cv::Rect lRect = cv::Rect(0, 0, 0, 0);
+		//	int tarea;
+		//	int farea;
+		//	tRect = cv::boundingRect(contours[i]);
+		//	tarea = tRect.area();
+		//	if (tarea < 2000)
+		//	{
+		//		continue;
+		//	}
+		//	rect = fRect | tRect;
+		//	fRect = cv::Rect(rect);
+		//	cv::rectangle(imageContours, rect, Scalar(0, 0, 255), 2, 8, 0);
 
-		}
-		cv::rectangle(imageContours, rect, Scalar(0, 255, 0), 2, 8, 0);
-		cv::rectangle(A, rect, Scalar(0, 255, 0), 2, 8, 0);
-		cv::imshow("contours", imageContours);
+		//}
+		//cv::rectangle(imageContours, rect, Scalar(0, 255, 0), 2, 8, 0);
+		//cv::rectangle(A, rect, Scalar(0, 255, 0), 2, 8, 0);
+		//cv::imshow("contours", imageContours);
 
-		cv::Mat secondImg = imgThresholded1(rect);
-		ParamPrep paramPrep3 = ParamPrep(ParamHSV(Scalar(0, 0, 0), Scalar(61, 255, 141)), ParamMorph(2));
-		cv::inRange(secondImg, paramPrep3.pHSV.scalarL, paramPrep3.pHSV.scalarH, secondImg); //Threshold the image 
+		//cv::Mat secondImg = imgThresholded1(rect);
+		//ParamPrep paramPrep3 = ParamPrep(ParamHSV(Scalar(0, 0, 0), Scalar(61, 255, 141)), ParamMorph(2));
+		//cv::inRange(secondImg, paramPrep3.pHSV.scalarL, paramPrep3.pHSV.scalarH, secondImg); //Threshold the image 
+		////cv::imshow("secondImg", secondImg);
+		////cv::imshow("secondImg2", secondImg);
+		//std::vector<std::vector<cv::Point>> contours1;
+		//std::vector<cv::Vec4i> hierarchy1;
+		//findContours(secondImg, contours1, hierarchy1, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_NONE, cv::Point());
+		////外接矩形
+		////cv::Rect wantRect;
+		//cv::Rect sRect = cv::Rect(0, 0, 0, 0);
+		//cv::Rect sfRect = cv::Rect(0, 0, 0, 0);
+		//cv::Mat imageContours1 = cv::Mat::zeros(secondImg.size(), CV_32FC3); //最小外接矩形画布
+		//cout <<" contours1.size()"<< contours1.size() << endl;
+		//for (int i = 0; i < contours1.size(); i++)
+		//	//for (int i = 0; i < filterRect.size(); i++)
+		//{
+		//	
+		//	//cv::Rect lRect = cv::Rect(0, 0, 0, 0);
+		//	cv::Rect stRect = cv::Rect(0, 0, 0, 0);
+		//	//cv::Rect lRect = cv::Rect(0, 0, 0, 0);
+		//	int sfarea;
+		//	stRect = cv::boundingRect(contours1[i]);
+		//	if (stRect.area() < 2000)
+		//	{
+		//		continue;
+		//	}
+		//	sRect = sfRect | stRect;
+		//	sfRect = cv::Rect(sRect);
+		//	cv::rectangle(imageContours1, sRect, Scalar(0, 0, 255), 2, 8, 0);
+		//	cv::imshow("imageContours1", imageContours1);
+		//}
+		//cout << "zzzzz" << sRect.x+rect.x << "	" << sRect.y+ rect.y << endl;
+		//cv::rectangle(secondImg, sRect, 200, 2, 8, 0);
 		//cv::imshow("secondImg", secondImg);
-		//cv::imshow("secondImg2", secondImg);
-		std::vector<std::vector<cv::Point>> contours1;
-		std::vector<cv::Vec4i> hierarchy1;
-		findContours(secondImg, contours1, hierarchy1, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_NONE, cv::Point());
-		//外接矩形
-		//cv::Rect wantRect;
-		cv::Rect sRect = cv::Rect(0, 0, 0, 0);
-		cv::Rect sfRect = cv::Rect(0, 0, 0, 0);
-		cv::Mat imageContours1 = cv::Mat::zeros(secondImg.size(), CV_32FC3); //最小外接矩形画布
-		cout <<" contours1.size()"<< contours1.size() << endl;
-		for (int i = 0; i < contours1.size(); i++)
-			//for (int i = 0; i < filterRect.size(); i++)
-		{
-			
-			//cv::Rect lRect = cv::Rect(0, 0, 0, 0);
-			cv::Rect stRect = cv::Rect(0, 0, 0, 0);
-			//cv::Rect lRect = cv::Rect(0, 0, 0, 0);
-			int sfarea;
-			stRect = cv::boundingRect(contours1[i]);
-			if (stRect.area() < 2000)
-			{
-				continue;
-			}
-			sRect = sfRect | stRect;
-			sfRect = cv::Rect(sRect);
-			cv::rectangle(imageContours1, sRect, Scalar(0, 0, 255), 2, 8, 0);
-			cv::imshow("imageContours1", imageContours1);
-		}
-		cout << "zzzzz" << sRect.x+rect.x << "	" << sRect.y+ rect.y << endl;
-		cv::rectangle(secondImg, sRect, 200, 2, 8, 0);
-		cv::imshow("secondImg", secondImg);
-		//给坐标
-		std::vector<cv::Point2f> wantMarkerCorners;
-		wantMarkerCorners.push_back(cv::Point2f(sRect.x + rect.x, sRect.y + rect.y));
-		wantMarkerCorners.push_back(cv::Point2f(sRect.x + rect.x + sRect.height, sRect.y + rect.y));
-		wantMarkerCorners.push_back(cv::Point2f(sRect.x + rect.x + sRect.height, sRect.y + rect.y + sRect.width));
-		wantMarkerCorners.push_back(cv::Point2f(sRect.x + rect.x, sRect.y + rect.y + sRect.width));
-		markerCorners.push_back(wantMarkerCorners);
-		markerIds.push_back(759);
+		////给坐标
+		//std::vector<cv::Point2f> wantMarkerCorners;
+		//wantMarkerCorners.push_back(cv::Point2f(sRect.x + rect.x, sRect.y + rect.y));
+		//wantMarkerCorners.push_back(cv::Point2f(sRect.x + rect.x + sRect.height, sRect.y + rect.y));
+		//wantMarkerCorners.push_back(cv::Point2f(sRect.x + rect.x + sRect.height, sRect.y + rect.y + sRect.width));
+		//wantMarkerCorners.push_back(cv::Point2f(sRect.x + rect.x, sRect.y + rect.y + sRect.width));
+		//markerCorners.push_back(wantMarkerCorners);
+		//markerIds.push_back(759);
 	}
-	else
-	{
-		cv::aruco::detectMarkers(thA, dictionary, markerCorners, markerIds, params, rejectedCandidates);
+	else {
+		Mat B;
+		//Mat thA;
+		cvtColor(A, B, COLOR_BGR2GRAY);
+		equalizeHist(B, inputImg);
+		//cv::imshow("inputImg", inputImg);
+		//cv::waitKey(0);
 	}
+	//else
+	//{
+	cv::aruco::detectMarkers(inputImg, dictionary, markerCorners, markerIds, params, rejectedCandidates);
+	//}
 	
 
 
@@ -617,6 +640,10 @@ void imgDetection::detectAruco(cv::Mat &A, cv::Mat &depthImg, int &rightMarkerId
 		//std::cout << rightmarkerCorners << std::endl;
 		//std::cout << markerIds.size() << std::endl;
 		aruco::drawDetectedMarkers(A, markerCorners);
+		aruco::drawDetectedMarkers(inputImg, markerCorners, markerIds,0);
+		cv::imshow("inputImg", inputImg);
+		cv::waitKey(0);
+
 	}
 
 	cv::Point rightMarkerCenter = cv::Point((int)(rightmarkerCorners[2].x + rightmarkerCorners[0].x) / 2,
