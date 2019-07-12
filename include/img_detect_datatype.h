@@ -197,7 +197,7 @@ struct ParamPreprocess {
 typedef ParamPreprocess ParamPrep;
 
 struct ParamContourSelect {
-    int  minW, maxW, minH, maxH, contourMode;
+    int  minW, maxW, minH, maxH;
     double minRatio, maxRatio;
 
     ParamContourSelect() {};

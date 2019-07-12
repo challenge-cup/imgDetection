@@ -57,9 +57,9 @@ public:
 	void trainModel();		//数字检测模型训练
 
 	//Aruco
-    void imgDetection::getSapling(cv::Mat & _img, ParamGenDetect & _param);
+    void getSapling(cv::Mat & _img, ParamGenDetect & _param);
 	void readAruco();
-	void detectAruco(cv::Mat &A, cv::Mat &depthImg, int &rightMarkerIds, std::ofstream &_outfile, bool &state,int &wantId);
+    void detectAruco(cv::Mat &A, cv::Mat &depthImg, int &rightMarkerIds, std::ofstream &_outfile, bool &state, int &wantId);
     std::vector<int> alreadyMarkerIds;
     std::vector<int> arucoIds;
 
