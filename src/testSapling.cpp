@@ -26,11 +26,11 @@ int main()
 	imgDetection imgDetector;
 	//cv::Rect CircleBottom;//返回下视圈的矩形
 
-	for (int i = 315; i <= 384; i++)
+	for (int i = 1681; i <= 1730; i++)
 	{
 		cout << "processing img " << i << endl;
 		//std::string path = "../data/circleDown/1 (" + to_string(i) + ").png";
-		std::string path = "../data/sapling1/" + std::to_string(i) + ".png";
+		std::string path = "../data/sapling2/" + std::to_string(i) + ".png";
 		img = imread(path);	//待处理图片放在这
 
         ParamGenDetect _param(false, cv::Point(0, 0));
